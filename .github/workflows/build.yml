@@ -19,17 +19,25 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: Unzip project archive
+    - name: Extract ZIP File
       run: |
-        unzip -o "*.zip" || true
-        find . -maxdepth 2 -name "gradlew" -exec chmod +x {} \;
+        ZIP_FILE=$(find . -maxdepth 1 -name "*.zip" | head -n 1)
+        if [ -n "$ZIP_FILE" ]; then
+          echo "Extracting $ZIP_FILE..."
+          unzip -o "$ZIP_FILE"
+        fi
 
-    - name: Build Debug APK
+    - name: Find and Build Gradle Project
       run: |
-        if [ -f "./gradlew" ]; then
-          ./gradlew assembleDebug
+        GRADLEW_PATH=$(find . -name "gradlew" | head -n 1)
+        if [ -n "$GRADLEW_PATH" ]; then
+          PROJECT_DIR=$(dirname "$GRADLEW_PATH")
+          cd "$PROJECT_DIR"
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
         else
-          cd Ecu* && chmod +x gradlew && ./gradlew assembleDebug
+          echo "ERROR: gradlew file not found!"
+          exit 1
         fi
 
     - name: Upload APK Artifact
