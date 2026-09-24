@@ -14,30 +14,38 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Set up JDK 17
-      uses: actions/setup-java@v4
+      uses: actions/setup-java@v5
       with:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: Extract ZIP File
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v4
+
+    - name: Unzip Project Files
       run: |
-        ZIP_FILE=$(find . -maxdepth 1 -name "*.zip" | head -n 1)
-        if [ -n "$ZIP_FILE" ]; then
-          echo "Extracting $ZIP_FILE..."
-          unzip -o "$ZIP_FILE"
+        sudo apt-get install -y unzip
+        find . -name "*.zip" -exec unzip -o {} \;
+
+    - name: Find Project and Build APK
+      run: |
+        # Find directory containing build.gradle or build.gradle.kts
+        BUILD_FILE=$(find . -name "build.gradle*" | head -n 1)
+        if [ -z "$BUILD_FILE" ]; then
+          echo "ERROR: build.gradle file not found!"
+          exit 1
         fi
 
-    - name: Find and Build Gradle Project
-      run: |
-        GRADLEW_PATH=$(find . -name "gradlew" | head -n 1)
-        if [ -n "$GRADLEW_PATH" ]; then
-          PROJECT_DIR=$(dirname "$GRADLEW_PATH")
-          cd "$PROJECT_DIR"
+        PROJECT_DIR=$(dirname "$BUILD_FILE")
+        echo "Found project directory at: $PROJECT_DIR"
+        cd "$PROJECT_DIR"
+
+        if [ -f "./gradlew" ]; then
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
         else
-          echo "ERROR: gradlew file not found!"
-          exit 1
+          echo "gradlew wrapper not found, using system gradle..."
+          gradle assembleDebug --no-daemon
         fi
 
     - name: Upload APK Artifact
