@@ -14,46 +14,41 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Set up JDK 17
-      uses: actions/setup-java@v4
+      uses: actions/setup-java@v5
       with:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: Extract ZIP File
+    - name: Extract ZIP Archive
       run: |
         sudo apt-get install -y unzip
-        ZIP_FILE=$(find . -maxdepth 1 -name "*.zip" | head -n 1)
-        if [ -n "$ZIP_FILE" ]; then
-          echo "Extracting $ZIP_FILE..."
-          unzip -o "$ZIP_FILE"
-        fi
+        find . -name "*.zip" -exec unzip -o {} \;
 
-    - name: Setup Android Licenses & Properties
+    - name: Setup Android & Build APK
       run: |
-        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
-        BUILD_FILE=$(find . -name "build.gradle*" | head -n 1)
-        if [ -n "$BUILD_FILE" ]; then
-          PROJECT_DIR=$(dirname "$BUILD_FILE")
-          echo "sdk.dir=$ANDROID_HOME" > "$PROJECT_DIR/local.properties"
+        # Find project root directory containing settings.gradle
+        SETTINGS_FILE=$(find . -name "settings.gradle*" | head -n 1)
+        
+        if [ -n "$SETTINGS_FILE" ]; then
+          PROJECT_DIR=$(dirname "$SETTINGS_FILE")
+        else
+          PROJECT_DIR=$(find . -name "build.gradle*" | awk '{print length, $0}' | sort -n | head -n 1 | cut -d" " -f2- | xargs dirname)
         fi
 
-    - name: Build Debug APK
-      run: |
-        BUILD_FILE=$(find . -name "build.gradle*" | head -n 1)
-        if [ -z "$BUILD_FILE" ]; then
-          echo "ERROR: build.gradle file not found!"
-          exit 1
-        fi
-
-        PROJECT_DIR=$(dirname "$BUILD_FILE")
+        echo "Project Root: $PROJECT_DIR"
         cd "$PROJECT_DIR"
 
-        if [ ! -f "./gradlew" ]; then
-          gradle wrapper --gradle-version 8.7
-        fi
+        # Create local.properties and accept licenses
+        echo "sdk.dir=$ANDROID_HOME" > local.properties
+        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-        chmod +x gradlew
-        ./gradlew assembleDebug --no-daemon
+        # Run Build
+        if [ -f "./gradlew" ]; then
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+        else
+          gradle assembleDebug --no-daemon
+        fi
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
