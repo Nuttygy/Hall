@@ -14,39 +14,43 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Set up JDK 17
-      uses: actions/setup-java@v5
+      uses: actions/setup-java@v4
       with:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@v4
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
 
     - name: Unzip Project Files
       run: |
         sudo apt-get install -y unzip
-        find . -name "*.zip" -exec unzip -o {} \;
+        find . -maxdepth 2 -name "*.zip" -exec unzip -o {} \;
 
-    - name: Find Project and Build APK
+    - name: Prepare and Build APK
       run: |
-        # Find directory containing build.gradle or build.gradle.kts
-        BUILD_FILE=$(find . -name "build.gradle*" | head -n 1)
+        # پیدا کردن پوشه اصلی پروژه اندروید
+        BUILD_FILE=$(find . -name "build.gradle*" -not -path "*/.*" | head -n 1)
         if [ -z "$BUILD_FILE" ]; then
           echo "ERROR: build.gradle file not found!"
           exit 1
         fi
 
         PROJECT_DIR=$(dirname "$BUILD_FILE")
-        echo "Found project directory at: $PROJECT_DIR"
+        echo "Project directory: $PROJECT_DIR"
         cd "$PROJECT_DIR"
 
-        if [ -f "./gradlew" ]; then
-          chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
-        else
-          echo "gradlew wrapper not found, using system gradle..."
-          gradle assembleDebug --no-daemon
+        # تنظیم آدرس SDK اندروید
+        echo "sdk.dir=$ANDROID_HOME" > local.properties
+
+        # ساخت فایل اجراکننده با نسخه سازگار گریدل (8.4)
+        if [ ! -f "./gradlew" ]; then
+          echo "Generating compatible Gradle Wrapper..."
+          gradle wrapper --gradle-version 8.4
         fi
+
+        chmod +x gradlew
+        ./gradlew assembleDebug --stacktrace
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
